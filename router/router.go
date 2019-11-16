@@ -11,7 +11,7 @@ func SetupRouter() *gin.Engine {
 
 	roomController := controllers.NewRoomController()
 	r.GET("/api/rooms/:room/", roomController.GetGameByID)
-	r.GET("/ws/:room/", roomController.JoinRoom)
-	r.GET("/api/rooms/", roomController.CreateRoom)
+	r.GET("/ws/new/", roomController.CreateRoom)
+	r.GET("/ws/rooms/:room/", roomController.JoinRoom)
 	return r
 }
