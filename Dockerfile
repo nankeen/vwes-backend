@@ -3,4 +3,4 @@ COPY vwes-backend /app/vwes-backend
 ENV PORT 80
 EXPOSE 80
 WORKDIR /app
-ENTRYPOINT ["/bin/sh"]
+ENTRYPOINT ["/app/vwes-backend"]

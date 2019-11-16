@@ -3,8 +3,8 @@ package controllers
 import (
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
+	"github.com/matoous/go-nanoid"
 	"github.com/nankeen/vwes-backend/game"
-	"github.com/rs/xid"
 	"log"
 	"net/http"
 )
@@ -21,6 +21,9 @@ func NewRoomController() RoomController {
 		wsupgrader: &websocket.Upgrader{
 			ReadBufferSize:  1024,
 			WriteBufferSize: 1024,
+			CheckOrigin: func(r *http.Request) bool {
+				return true
+			},
 		},
 	}
 }
@@ -57,11 +60,13 @@ func (rc *RoomController) JoinRoom(c *gin.Context) {
 
 	conn, err := rc.wsupgrader.Upgrade(c.Writer, c.Request, nil)
 	if err != nil {
-		log.Println("Failed to set websocket upgrade: %+v", err)
+		log.Printf("Failed to set websocket upgrade: %+v\n", err)
 		return
 	}
+
 	playerID, err := game.AddPlayer(conn)
 	if err != nil {
+		log.Println("Room %v is full", id)
 		conn.WriteJSON(gin.H{
 			"status": "room is full",
 		})
@@ -70,17 +75,30 @@ func (rc *RoomController) JoinRoom(c *gin.Context) {
 	}
 
 	// Send hello handshake with player ID
-	conn.WriteJSON(gin.H{
+	err = conn.WriteJSON(gin.H{
 		"status": "connected",
-		"player": *playerID,
+		"player": playerID,
 	})
+
+	if err != nil {
+		log.Println("Can't send status to client", err)
+	}
+
+	log.Printf("Player %v connected to room %v\n", playerID, id)
 
 	for {
 		err := conn.ReadJSON(&msg)
+		log.Printf("Got message from player: %+v", msg)
 		if err != nil {
-			break
+			if websocket.IsUnexpectedCloseError(err) {
+				log.Printf("Player disconnected: %v\n", playerID)
+				game.RemovePlayer(playerID)
+				break
+			}
+			log.Println("Error parsing player message", err)
+			continue
 		}
-		msg.Player = *playerID
+		msg.Player = playerID
 		game.Swing(msg)
 	}
 }
@@ -88,13 +106,19 @@ func (rc *RoomController) JoinRoom(c *gin.Context) {
 func (rc *RoomController) CreateRoom(c *gin.Context) {
 	gc, err := rc.wsupgrader.Upgrade(c.Writer, c.Request, nil)
 	if err != nil {
-		log.Println("Failed to set websocket upgrade: %+v", err)
+		log.Printf("Failed to set websocket upgrade: %+v\n", err)
 		return
 	}
 
 	// Generate room id
-	uid := xid.New()
-	if rc.games[uid.String()] != nil {
+	uid, err := gonanoid.Generate("0123456789", 4)
+	if err != nil {
+		log.Println(err)
+		gc.Close()
+		return
+	}
+
+	if rc.games[uid] != nil {
 		log.Println("UID clash")
 		gc.Close()
 		return
@@ -102,8 +126,13 @@ func (rc *RoomController) CreateRoom(c *gin.Context) {
 
 	// Create a game
 	g := game.NewGame(gc)
-	rc.games[uid.String()] = &g
+	rc.games[uid] = &g
 	// Return room id
+
+	gc.WriteJSON(game.RoomInfo{
+		RoomID:           uid,
+		PlayersConnected: g.PlayerCount(),
+	})
 
 	for {
 		_, _, err := gc.ReadMessage()
