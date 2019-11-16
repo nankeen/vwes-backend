@@ -111,7 +111,7 @@ func (rc *RoomController) CreateRoom(c *gin.Context) {
 	}
 
 	// Generate room id
-	uid, err := gonanoid.Generate("0123456789", 4)
+	uid, err := gonanoid.Generate("0123456789", 6)
 	if err != nil {
 		log.Println(err)
 		gc.Close()
@@ -137,7 +137,7 @@ func (rc *RoomController) CreateRoom(c *gin.Context) {
 	for {
 		_, _, err := gc.ReadMessage()
 		if err != nil {
-			log.Println("Game %+v disconnected", uid)
+			log.Printf("Game %+v disconnected\n", uid)
 			g.End()
 			return
 		}
