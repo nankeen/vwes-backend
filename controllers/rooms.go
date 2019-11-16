@@ -4,6 +4,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
 	"github.com/nankeen/vwes-backend/game"
+	"github.com/rs/xid"
 	"log"
 	"net/http"
 )
@@ -85,5 +86,31 @@ func (rc *RoomController) JoinRoom(c *gin.Context) {
 }
 
 func (rc *RoomController) CreateRoom(c *gin.Context) {
-	// Create a new game
+	gc, err := rc.wsupgrader.Upgrade(c.Writer, c.Request, nil)
+	if err != nil {
+		log.Println("Failed to set websocket upgrade: %+v", err)
+		return
+	}
+
+	// Generate room id
+	uid := xid.New()
+	if rc.games[uid.String()] != nil {
+		log.Println("UID clash")
+		gc.Close()
+		return
+	}
+
+	// Create a game
+	g := game.NewGame(gc)
+	rc.games[uid.String()] = &g
+	// Return room id
+
+	for {
+		_, _, err := gc.ReadMessage()
+		if err != nil {
+			log.Println("Game %+v disconnected", uid)
+			g.End()
+			return
+		}
+	}
 }

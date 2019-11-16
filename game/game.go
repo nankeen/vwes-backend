@@ -14,9 +14,20 @@ type Game struct {
 
 func NewGame(gc *websocket.Conn) Game {
 	bc := make(chan Message)
-	return Game{
+	g := Game{
 		gameConn:  gc,
 		broadcast: bc,
+	}
+	go g.Start()
+	return g
+}
+
+func (g *Game) Start() {
+	for {
+		select {
+		case msg := <-g.broadcast:
+			g.gameConn.WriteJSON(msg)
+		}
 	}
 }
 
@@ -38,4 +49,7 @@ func (g *Game) AddPlayer(p *websocket.Conn) (*int, error) {
 
 func (g *Game) Swing(msg Message) {
 	g.broadcast <- msg
+}
+
+func (g *Game) End() {
 }
