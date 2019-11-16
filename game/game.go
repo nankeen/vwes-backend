@@ -24,12 +24,9 @@ func NewGame(gc *websocket.Conn) Game {
 }
 
 func (g *Game) Start() {
-	for {
-		select {
-		case msg := <-g.broadcast:
-			if err := g.gameConn.WriteJSON(msg); err != nil {
-				log.Println("Error sending player action to game", err)
-			}
+	for msg := range g.broadcast {
+		if err := g.gameConn.WriteJSON(msg); err != nil {
+			log.Println("Error sending player action to game", err)
 		}
 	}
 }
